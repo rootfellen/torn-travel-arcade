@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Travel Arcade
 // @namespace    https://github.com/rootfellen/torn-travel-arcade
-// @version      1.0.0
+// @version      1.1.0
 // @description  Adds a small Snake / 2048 arcade to the Travel page so long flights aren't so boring. No network requests, no automation, never touches your travel.
 // @author       0o0o0
 // @license      MIT
@@ -187,6 +187,9 @@
         border-radius:50%;border:2px solid #444;background:#222;color:#fff;font-size:22px;
         box-shadow:0 2px 8px rgba(0,0,0,.4);}
       #tta-toggle:hover{background:#333}
+      #tta-backdrop{position:fixed;inset:0;z-index:2147482999;background:rgba(8,8,12,.55);
+        backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+      #tta-backdrop.tta-hidden{display:none}
       #tta-panel{position:fixed;right:16px;bottom:72px;z-index:2147483000;width:280px;
         background:#1c1c1c;color:#eee;border:1px solid #444;border-radius:10px;
         font:13px/1.4 Arial,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.5);overflow:hidden;}
@@ -218,7 +221,19 @@
       .tta-btn:hover{background:#3d3d3d}
       .tta-overlay{position:absolute;inset:0;background:rgba(0,0,0,.6);display:flex;
         align-items:center;justify-content:center;color:#fff;font-weight:bold;border-radius:4px}
-      .tta-canvas-wrap{position:relative}
+      .tta-canvas-wrap{position:relative;touch-action:none}
+      .tta-dpad{display:grid;grid-template-columns:36px 36px 36px;grid-template-rows:36px 36px 36px;
+        gap:3px;margin-top:2px}
+      .tta-dpad button{grid-area:auto;background:#333;border:1px solid #4a4a4a;color:#eee;
+        border-radius:6px;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+        touch-action:manipulation;user-select:none}
+      .tta-dpad button:hover{background:#3d3d3d}
+      .tta-dpad button:active{background:#4a4a4a}
+      .tta-dpad-up{grid-column:2;grid-row:1}
+      .tta-dpad-left{grid-column:1;grid-row:2}
+      .tta-dpad-mid{grid-column:2;grid-row:2;background:none;border:none;cursor:default}
+      .tta-dpad-right{grid-column:3;grid-row:2}
+      .tta-dpad-down{grid-column:2;grid-row:3}
     `;
     document.head.appendChild(style);
   }
@@ -535,6 +550,22 @@
     else t2Reset();
   }
 
+  // On-screen arrow pad, always visible: gives touch devices (Torn PDA has no
+  // physical keyboard) a way to play without needing a swipe gesture.
+  function buildDpad() {
+    const mk = (cls, dir, glyph) => el('button', {
+      class: 'tta-dpad-' + cls, type: 'button', text: glyph,
+      onclick: () => applyDirection(dir),
+    });
+    return el('div', { class: 'tta-dpad' }, [
+      mk('up', 'up', '▲'),
+      mk('left', 'left', '◀'),
+      el('span', { class: 'tta-dpad-mid' }),
+      mk('right', 'right', '▶'),
+      mk('down', 'down', '▼'),
+    ]);
+  }
+
   const panelDragState = { dragged: false };
 
   function buildPanel() {
@@ -552,14 +583,16 @@
     const tabs = el('div', { class: 'tta-tabs' }, [tabSnake, tab2048]);
 
     snakeView = buildSnakeView();
+    addSwipeControl(snakeView);
     const snakeStats = buildStatsRow('snake');
-    snakeBody = el('div', { class: 'tta-body' }, [snakeView, snakeStats,
-      el('div', { class: 'tta-hint', text: 'Arrow keys / WASD to move' })]);
+    snakeBody = el('div', { class: 'tta-body' }, [snakeView, buildDpad(), snakeStats,
+      el('div', { class: 'tta-hint', text: 'Arrow keys / WASD, swipe, or the arrows above' })]);
 
     t2View = buildT2View();
+    addSwipeControl(t2View);
     const t2Stats = buildStatsRow('2048');
-    t2Body = el('div', { class: 'tta-body', style: 'display:none' }, [t2View, t2Stats,
-      el('div', { class: 'tta-hint', text: 'Arrow keys / WASD to slide tiles' })]);
+    t2Body = el('div', { class: 'tta-body', style: 'display:none' }, [t2View, buildDpad(), t2Stats,
+      el('div', { class: 'tta-hint', text: 'Arrow keys / WASD, swipe, or the arrows above' })]);
 
     const restartBtn = el('button', { class: 'tta-btn', type: 'button', text: 'Restart', onclick: restartActive });
     const footer = el('div', { class: 'tta-body', style: 'padding-top:0' }, [restartBtn]);
@@ -571,14 +604,18 @@
   }
 
   let panelEl = null;
+  let backdropEl = null;
   let builtOnce = false;
 
   function openPanel() {
     if (!builtOnce) {
+      backdropEl = el('div', { id: 'tta-backdrop', class: 'tta-hidden', onclick: closePanel });
+      document.body.appendChild(backdropEl);
       panelEl = buildPanel();
       document.body.appendChild(panelEl);
       builtOnce = true;
     }
+    backdropEl.classList.remove('tta-hidden');
     panelEl.classList.remove('tta-hidden');
     // Only measurable (getBoundingClientRect) once visible, so this runs after unhiding.
     // Re-applying the same saved value on every open is harmless.
@@ -589,6 +626,7 @@
 
   function closePanel() {
     if (panelEl) panelEl.classList.add('tta-hidden');
+    if (backdropEl) backdropEl.classList.add('tta-hidden');
     panelOpen = false;
   }
 
@@ -629,6 +667,19 @@
   // -------------------------------------------------------------- input
   // Only intercepts keys while the panel is open, and never while the
   // player is typing in a real text field elsewhere on the page.
+  // Shared by the keyboard, the on-screen D-pad and swipe gestures, so
+  // Torn PDA (no physical keyboard) can play exactly the same way.
+  function applyDirection(dir) {
+    if (!panelOpen) return;
+    if (activeGame === 'snake') {
+      const vec = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } }[dir];
+      snake.pendingDir = vec;
+      if (snake.gameOver) snakeReset();
+    } else {
+      t2Move(dir);
+    }
+  }
+
   window.addEventListener('keydown', (e) => {
     if (!panelOpen) return;
     const t = e.target;
@@ -640,16 +691,33 @@
 
     if (e.key === ' ') { restartActive(); return; }
     const dir = DIR_MAP[e.key];
-    if (!dir) return;
-
-    if (activeGame === 'snake') {
-      const vec = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } }[dir];
-      snake.pendingDir = vec;
-      if (snake.gameOver) snakeReset();
-    } else {
-      t2Move(dir);
-    }
+    if (dir) applyDirection(dir);
   }, true);
+
+  // --------------------------------------------------------- touch/swipe
+  /** Swipe on a game area to move, for touch devices (Torn PDA, tablets). */
+  function addSwipeControl(area) {
+    let sx = 0;
+    let sy = 0;
+    let tracking = false;
+    area.style.touchAction = 'none';
+    area.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      tracking = true;
+      sx = e.touches[0].clientX;
+      sy = e.touches[0].clientY;
+    }, { passive: true });
+    area.addEventListener('touchend', (e) => {
+      if (!tracking) return;
+      tracking = false;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - sx;
+      const dy = t.clientY - sy;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return; // too small to count as a swipe
+      const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+      applyDirection(dir);
+    });
+  }
 
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) ensureSnakeLoop();
