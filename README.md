@@ -15,8 +15,9 @@ On the **Travel** page (`torn.com/page.php?sid=travel`):
 - Best scores are saved locally per game and persist between visits.
 - Snake pauses automatically if you switch browser tabs, so it doesn't run in the background.
 
-![screenshot](screenshot.png)
-<!-- TODO: replace the line above with a real screenshot.png of the panel open, or delete it if you'd rather skip a screenshot -->
+![screenshot](screenshot1.png)
+![screenshot](screenshot2.png)
+
 
 ## Install
 
