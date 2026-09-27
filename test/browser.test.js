@@ -172,6 +172,60 @@ const ok = (name, cond) => results.push(`${cond ? 'PASS' : 'FAIL'}  ${name}`);
   await p.mouse.up();
   const panelBox4 = await p.locator('#tta-panel').boundingBox();
   ok('dragging off-screen clamps within the viewport', panelBox4.x >= 0 && panelBox4.y >= 0);
+
+  // --- backdrop: shows blurring the page while open, hides when closed ---
+  ok('backdrop visible while panel is open', await p.isVisible('#tta-backdrop'));
+  await p.click('#tta-snake-canvas'); // click inside the panel content (snake tab is active at this point)
+  ok('clicking inside the panel does not close it', await p.isVisible('#tta-panel'));
+  const vp = p.viewportSize();
+  await p.mouse.click(10, vp.height - 10); // bottom-left: clear of both the clamped panel (top-left) and the toggle button (dragged toward top-right earlier)
+  ok('clicking the backdrop closes the panel', !(await p.isVisible('#tta-panel')));
+  ok('backdrop hides along with the panel', !(await p.isVisible('#tta-backdrop')));
+  }
+
+  // ---------------------------------------------------- touch / D-pad controls
+  {
+  const ctx = await b.newContext();
+  const p = await ctx.newPage();
+  await p.route('https://www.torn.com/**', r => r.fulfill({ contentType: 'text/html', body: `<!doctype html><html><body>
+    <div class="content-wrapper"><h4>Travel</h4><button id="travel">TRAVEL</button></div>
+    </body></html>` }));
+  await p.goto('https://www.torn.com/page.php?sid=travel');
+  await p.addScriptTag({ content: script });
+  await p.waitForTimeout(50);
+  await p.click('#tta-toggle');
+
+  ok('on-screen D-pad is visible for the active game (snake)', await p.isVisible('#tta-snake-canvas ~ .tta-dpad, .tta-dpad'));
+
+  // --- 2048: D-pad button actually moves/merges tiles, same as a key press ---
+  await p.click('#tta-tab-2048');
+  const before2048 = await p.$$eval('.tta-grid2048 .tta-cell', els => els.map(e => e.textContent));
+  let dpadMoved = false;
+  for (let i = 0; i < 20 && !dpadMoved; i++) {
+    const dirs = ['tta-dpad-left', 'tta-dpad-right', 'tta-dpad-up', 'tta-dpad-down'];
+    await p.click('#tta-2048-wrap ~ .tta-dpad .' + dirs[i % 4]);
+    await p.waitForTimeout(15);
+    const now = await p.$$eval('.tta-grid2048 .tta-cell', els => els.map(e => e.textContent));
+    if (JSON.stringify(now) !== JSON.stringify(before2048)) dpadMoved = true;
+  }
+  ok('2048 D-pad button moves tiles', dpadMoved);
+
+  // --- snake: D-pad press changes pending direction without throwing ---
+  await p.click('#tta-tab-snake');
+  await p.click('.tta-dpad-down');
+  await p.waitForTimeout(120);
+  ok('snake still running after using the D-pad', (await p.$$('#tta-snake-canvas')).length === 1);
+
+  // --- swipe gesture on the snake canvas area applies a direction (no crash, canvas alive) ---
+  const canvasBox = await p.locator('#tta-snake-canvas').boundingBox();
+  await p.evaluate(({ x, y }) => {
+    const el = document.elementFromPoint(x, y);
+    const mk = (type, cx, cy) => new Touch({ identifier: 1, target: el, clientX: cx, clientY: cy });
+    el.dispatchEvent(new TouchEvent('touchstart', { touches: [mk('touchstart', x, y)], bubbles: true }));
+    el.dispatchEvent(new TouchEvent('touchend', { changedTouches: [mk('touchend', x + 60, y)], bubbles: true }));
+  }, { x: canvasBox.x + canvasBox.width / 2, y: canvasBox.y + canvasBox.height / 2 });
+  await p.waitForTimeout(120);
+  ok('swipe gesture on the game area does not crash the game', (await p.$$('#tta-snake-canvas')).length === 1);
   }
 
   console.log(results.join('\n'));

@@ -1,6 +1,6 @@
 {
   "name": "torn-travel-arcade",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Dev tooling for the Torn 'Travel Arcade' userscript. Users only need the .user.js file.",
   "license": "MIT",

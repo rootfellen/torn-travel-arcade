@@ -11,13 +11,12 @@ On the **Travel** page (`torn.com/page.php?sid=travel`):
 - A small floating **🎮 button**, closed by default. Click it to open the arcade panel.
 - **Snake** and **2048**, switchable by tab. Each keeps its own progress and high score, so switching tabs doesn't reset the other.
 - **Drag the button and the panel** anywhere on screen (drag the panel by its header). Both remember exactly where you left them, even after a page reload, and can't be dragged off-screen.
-- Controls: **arrow keys or WASD**, **space** to restart. These are only captured while the panel is open, and never while you're typing in a real text field elsewhere on the page (like faction chat).
+- Controls: **arrow keys or WASD** on desktop, **on-screen arrow buttons or swipe** on touch devices (Torn PDA included), **space** to restart. Keyboard input is only captured while the panel is open, and never while you're typing in a real text field elsewhere on the page (like faction chat).
 - Best scores are saved locally per game and persist between visits.
 - Snake pauses automatically if you switch browser tabs, so it doesn't run in the background.
 
-![screenshot](screenshot1.png)
-![screenshot](screenshot2.png)
-
+![screenshot](screenshot.png)
+<!-- TODO: replace the line above with a real screenshot.png of the panel open, or delete it if you'd rather skip a screenshot -->
 
 ## Install
 
